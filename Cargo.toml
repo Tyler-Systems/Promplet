@@ -1,0 +1,27 @@
+[package]
+name = "promplet"
+version = "0.1.0-alpha.1"
+edition = "2024"
+description = "A tiny, clipboard-free prompt strip for Windows"
+license = "MIT"
+
+[dependencies]
+fltk = { version = "1.5.23", features = ["fltk-bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[build-dependencies]
+winres = "0.1.12"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
