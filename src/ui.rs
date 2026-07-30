@@ -1,6 +1,7 @@
 use fltk::{
     app,
     button::Button,
+    draw,
     enums::{Align, Color, Event, Font, FrameType},
     frame::Frame,
     group::{Pack, PackType},
@@ -147,11 +148,33 @@ impl Strip {
     }
 
     fn add_drag_grip(&mut self) {
-        let mut grip = Frame::new(0, 0, GRIP_WIDTH, STRIP_HEIGHT - EDGE * 2, "⁙");
-        grip.set_frame(FrameType::ThinUpBox);
-        grip.set_label_font(Font::CourierBold);
-        grip.set_label_size(16);
-        grip.set_align(Align::Center);
+        let mut grip = Frame::new(0, 0, GRIP_WIDTH, STRIP_HEIGHT - EDGE * 2, "");
+        grip.set_frame(FrameType::NoBox);
+        grip.draw(|grip| {
+            draw::set_draw_color(Color::from_rgb(192, 192, 192));
+            draw::draw_rectf(grip.x(), grip.y(), grip.w(), grip.h());
+
+            const COLUMNS: i32 = 3;
+            const ROWS: i32 = 4;
+            const DOT_SIZE: i32 = 3;
+            const DOT_GAP: i32 = 2;
+            let texture_width = COLUMNS * DOT_SIZE + (COLUMNS - 1) * DOT_GAP;
+            let texture_height = ROWS * DOT_SIZE + (ROWS - 1) * DOT_GAP;
+            let start_x = grip.x() + (grip.w() - texture_width) / 2;
+            let start_y = grip.y() + (grip.h() - texture_height) / 2;
+
+            for row in 0..ROWS {
+                for column in 0..COLUMNS {
+                    let x = start_x + column * (DOT_SIZE + DOT_GAP);
+                    let y = start_y + row * (DOT_SIZE + DOT_GAP);
+
+                    draw::set_draw_color(Color::from_rgb(96, 96, 96));
+                    draw::draw_rectf(x + 1, y + 1, 2, 2);
+                    draw::set_draw_color(Color::from_rgb(232, 232, 232));
+                    draw::draw_rectf(x, y, 2, 2);
+                }
+            }
+        });
         grip.set_tooltip("Drag Promplet · Right-click for menu");
 
         let mut window = self.window.clone();
