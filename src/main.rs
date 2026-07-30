@@ -61,15 +61,14 @@ fn run() -> Result<(), String> {
                 }
                 Message::Edit(index) => {
                     if let Some(prompt) = config.prompts.get(index) {
-                        editor.open(index, prompt);
+                        editor.open(index, prompt, config.orientation);
                     }
                 }
                 Message::Create => {
                     let index = config.add_prompt();
-                    save_or_report(&store, &config);
-                    strip.rebuild(&config);
+                    rebuild_and_save(&mut strip, &store, &mut config);
                     if let Some(prompt) = config.prompts.get(index) {
-                        editor.open(index, prompt);
+                        editor.open(index, prompt, config.orientation);
                     }
                 }
                 Message::ShowConfig => {
@@ -82,34 +81,35 @@ fn run() -> Result<(), String> {
                         ));
                     }
                 }
+                Message::ToggleOrientation => {
+                    config.orientation = config.orientation.toggled();
+                    rebuild_and_save(&mut strip, &store, &mut config);
+                    editor.reposition(config.orientation);
+                }
                 Message::Save { index, title, text } => {
                     if config.update_prompt(index, title, text) {
-                        save_or_report(&store, &config);
-                        strip.rebuild(&config);
+                        rebuild_and_save(&mut strip, &store, &mut config);
                     }
                     editor.hide();
                 }
                 Message::Duplicate(index) => {
                     if let Some(new_index) = config.duplicate_prompt(index) {
-                        save_or_report(&store, &config);
-                        strip.rebuild(&config);
+                        rebuild_and_save(&mut strip, &store, &mut config);
                         if let Some(prompt) = config.prompts.get(new_index) {
-                            editor.open(new_index, prompt);
+                            editor.open(new_index, prompt, config.orientation);
                         }
                     }
                 }
                 Message::AddAfter(index) => {
                     let new_index = config.add_after(index);
-                    save_or_report(&store, &config);
-                    strip.rebuild(&config);
+                    rebuild_and_save(&mut strip, &store, &mut config);
                     if let Some(prompt) = config.prompts.get(new_index) {
-                        editor.open(new_index, prompt);
+                        editor.open(new_index, prompt, config.orientation);
                     }
                 }
                 Message::Delete(index) => {
                     if config.delete_prompt(index) {
-                        save_or_report(&store, &config);
-                        strip.rebuild(&config);
+                        rebuild_and_save(&mut strip, &store, &mut config);
                     }
                     editor.hide();
                 }
@@ -124,6 +124,12 @@ fn run() -> Result<(), String> {
     }
 
     Ok(())
+}
+
+fn rebuild_and_save(strip: &mut Strip, store: &ConfigStore, config: &mut Config) {
+    strip.rebuild(config);
+    config.window_position = Some(strip.position());
+    save_or_report(store, config);
 }
 
 fn save_or_report(store: &ConfigStore, config: &Config) {

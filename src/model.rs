@@ -21,11 +21,29 @@ pub struct WindowPosition {
     pub y: i32,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Orientation {
+    #[default]
+    Horizontal,
+    Vertical,
+}
+
+impl Orientation {
+    pub fn toggled(self) -> Self {
+        match self {
+            Self::Horizontal => Self::Vertical,
+            Self::Vertical => Self::Horizontal,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(default)]
 pub struct Config {
     pub version: u32,
     pub window_position: Option<WindowPosition>,
+    pub orientation: Orientation,
     pub prompts: Vec<Prompt>,
 }
 
@@ -78,6 +96,7 @@ impl Default for Config {
         Self {
             version: 1,
             window_position: None,
+            orientation: Orientation::Horizontal,
             prompts: vec![
                 Prompt {
                     title: "Explain".to_owned(),
@@ -133,5 +152,14 @@ mod tests {
 
         assert!(config.delete_prompt(0));
         assert!(config.prompts.is_empty());
+    }
+
+    #[test]
+    fn older_config_defaults_to_horizontal() {
+        let config: Config =
+            serde_json::from_str(r#"{"version":1,"window_position":null,"prompts":[]}"#)
+                .expect("old config should still load");
+
+        assert_eq!(config.orientation, Orientation::Horizontal);
     }
 }

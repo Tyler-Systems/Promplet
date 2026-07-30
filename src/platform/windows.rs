@@ -1,6 +1,8 @@
 use std::{ffi::OsString, io, mem, path::Path, process::Command, ptr, thread, time::Duration};
 
 use fltk::{prelude::WindowExt, window::DoubleWindow};
+
+use crate::model::Orientation;
 use windows_sys::Win32::{
     Foundation::{
         CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE, HWND, RECT, SetLastError,
@@ -18,10 +20,10 @@ use windows_sys::Win32::{
         WindowsAndMessaging::{
             AppendMenuW, CreatePopupMenu, DestroyMenu, FindWindowExW, FindWindowW, GW_HWNDPREV,
             GWL_EXSTYLE, GetClassNameW, GetForegroundWindow, GetWindow, GetWindowLongPtrW,
-            GetWindowRect, HWND_TOPMOST, MF_SEPARATOR, MF_STRING, PostMessageW, SWP_FRAMECHANGED,
-            SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetForegroundWindow,
-            SetWindowLongPtrW, SetWindowPos, TPM_RETURNCMD, TPM_RIGHTBUTTON, TrackPopupMenuEx,
-            WM_NULL, WS_EX_NOACTIVATE,
+            GetWindowRect, HWND_TOPMOST, MF_CHECKED, MF_SEPARATOR, MF_STRING, PostMessageW,
+            SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
+            SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, TPM_RETURNCMD, TPM_RIGHTBUTTON,
+            TrackPopupMenuEx, WM_NULL, WS_EX_NOACTIVATE,
         },
     },
 };
@@ -41,6 +43,7 @@ enum TextUnit {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StripMenuAction {
     Create,
+    ToggleOrientation,
     ShowConfig,
     Quit,
 }
@@ -303,10 +306,11 @@ pub fn clamp_to_work_area(window: &DoubleWindow, margin: i32) -> Result<(i32, i3
     }
 }
 
-pub fn position_editor_above(
+pub fn position_editor(
     window: &DoubleWindow,
     anchor: &DoubleWindow,
     gap: i32,
+    orientation: Orientation,
 ) -> Result<(), String> {
     let hwnd = window.raw_handle() as HWND;
     let anchor_hwnd = anchor.raw_handle() as HWND;
@@ -343,7 +347,14 @@ pub fn position_editor_above(
 
         let width = editor_rect.right - editor_rect.left;
         let height = editor_rect.bottom - editor_rect.top;
-        let (x, y) = editor_position(&monitor_info.rcWork, &anchor_rect, width, height, gap);
+        let (x, y) = editor_position(
+            &monitor_info.rcWork,
+            &anchor_rect,
+            width,
+            height,
+            gap,
+            orientation,
+        );
 
         if SetWindowPos(hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE) == 0 {
             return Err(format!(
@@ -376,10 +387,12 @@ pub fn show_strip_menu(
     window: &DoubleWindow,
     x: i32,
     y: i32,
+    orientation: Orientation,
 ) -> Result<Option<StripMenuAction>, String> {
     const CREATE_ID: usize = 1;
-    const SHOW_CONFIG_ID: usize = 2;
-    const QUIT_ID: usize = 3;
+    const TOGGLE_ORIENTATION_ID: usize = 2;
+    const SHOW_CONFIG_ID: usize = 3;
+    const QUIT_ID: usize = 4;
 
     let hwnd = window.raw_handle() as HWND;
     if hwnd.is_null() {
@@ -388,6 +401,7 @@ pub fn show_strip_menu(
 
     let create_text = wide_null("New Promplet…");
     let show_config_text = wide_null("Show Config File");
+    let vertical_text = wide_null("Vertical");
     let quit_text = wide_null("Quit Promplet");
 
     // SAFETY: The menu is created, used, and destroyed synchronously on the
@@ -402,7 +416,18 @@ pub fn show_strip_menu(
             ));
         }
 
+        let orientation_flags = if orientation == Orientation::Vertical {
+            MF_STRING | MF_CHECKED
+        } else {
+            MF_STRING
+        };
         let appended = AppendMenuW(menu, MF_STRING, CREATE_ID, create_text.as_ptr()) != 0
+            && AppendMenuW(
+                menu,
+                orientation_flags,
+                TOGGLE_ORIENTATION_ID,
+                vertical_text.as_ptr(),
+            ) != 0
             && AppendMenuW(menu, MF_STRING, SHOW_CONFIG_ID, show_config_text.as_ptr()) != 0
             && AppendMenuW(menu, MF_SEPARATOR, 0, ptr::null()) != 0
             && AppendMenuW(menu, MF_STRING, QUIT_ID, quit_text.as_ptr()) != 0;
@@ -434,6 +459,7 @@ pub fn show_strip_menu(
         match command as usize {
             0 => Ok(None),
             CREATE_ID => Ok(Some(StripMenuAction::Create)),
+            TOGGLE_ORIENTATION_ID => Ok(Some(StripMenuAction::ToggleOrientation)),
             SHOW_CONFIG_ID => Ok(Some(StripMenuAction::ShowConfig)),
             QUIT_ID => Ok(Some(StripMenuAction::Quit)),
             unknown => Err(format!(
@@ -625,23 +651,43 @@ fn editor_position(
     width: i32,
     height: i32,
     gap: i32,
+    orientation: Orientation,
 ) -> (i32, i32) {
     let max_x = (work_area.right - width).max(work_area.left);
     let max_y = (work_area.bottom - height).max(work_area.top);
-    let x = (anchor.right - width).clamp(work_area.left, max_x);
-
     let gap = gap.max(0);
-    let above = anchor.top - gap - height;
-    let below = anchor.bottom + gap;
-    let preferred_y = if above >= work_area.top {
-        above
-    } else if below + height <= work_area.bottom {
-        below
-    } else {
-        above
-    };
 
-    (x, preferred_y.clamp(work_area.top, max_y))
+    match orientation {
+        Orientation::Horizontal => {
+            let x = (anchor.right - width).clamp(work_area.left, max_x);
+
+            let above = anchor.top - gap - height;
+            let below = anchor.bottom + gap;
+            let preferred_y = if above >= work_area.top {
+                above
+            } else if below + height <= work_area.bottom {
+                below
+            } else {
+                above
+            };
+
+            (x, preferred_y.clamp(work_area.top, max_y))
+        }
+        Orientation::Vertical => {
+            let left = anchor.left - gap - width;
+            let right = anchor.right + gap;
+            let preferred_x = if left >= work_area.left {
+                left
+            } else if right + width <= work_area.right {
+                right
+            } else {
+                left
+            };
+            let y = (anchor.bottom - height).clamp(work_area.top, max_y);
+
+            (preferred_x.clamp(work_area.left, max_x), y)
+        }
+    }
 }
 
 fn visible_position(work_area: &RECT, window: &RECT, margin: i32) -> (i32, i32) {
@@ -770,7 +816,7 @@ mod tests {
         };
 
         assert_eq!(
-            editor_position(&work_area, &anchor, 520, 390, 8),
+            editor_position(&work_area, &anchor, 520, 390, 8, Orientation::Horizontal),
             (2028, 951)
         );
     }
@@ -791,8 +837,29 @@ mod tests {
         };
 
         assert_eq!(
-            editor_position(&work_area, &anchor, 520, 390, 8),
+            editor_position(&work_area, &anchor, 520, 390, 8, Orientation::Horizontal),
             (-1920, 41)
+        );
+    }
+
+    #[test]
+    fn vertical_editor_is_left_and_bottom_aligned() {
+        let work_area = RECT {
+            left: 0,
+            top: 0,
+            right: 2560,
+            bottom: 1392,
+        };
+        let anchor = RECT {
+            left: 2517,
+            top: 800,
+            right: 2548,
+            bottom: 1380,
+        };
+
+        assert_eq!(
+            editor_position(&work_area, &anchor, 520, 390, 8, Orientation::Vertical),
+            (1989, 990)
         );
     }
 

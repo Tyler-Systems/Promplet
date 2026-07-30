@@ -11,7 +11,7 @@ use fltk::{
 };
 
 use crate::{
-    model::{Config, Prompt, WindowPosition},
+    model::{Config, Orientation, Prompt, WindowPosition},
     platform,
 };
 
@@ -32,6 +32,7 @@ pub enum Message {
     Edit(usize),
     Create,
     ShowConfig,
+    ToggleOrientation,
     Save {
         index: usize,
         title: String,
@@ -102,31 +103,39 @@ impl Strip {
     }
 
     pub fn rebuild(&mut self, config: &Config) {
+        let orientation = config.orientation;
+
         self.pack.clear();
+        self.pack.set_type(match orientation {
+            Orientation::Horizontal => PackType::Horizontal,
+            Orientation::Vertical => PackType::Vertical,
+        });
         self.pack.begin();
 
-        self.add_drag_grip();
+        self.add_drag_grip(orientation);
         for (index, prompt) in config.prompts.iter().enumerate() {
-            self.add_prompt_button(index, prompt);
+            self.add_prompt_button(index, prompt, orientation);
         }
 
         self.pack.end();
 
-        let prompt_width: i32 = config
-            .prompts
-            .iter()
-            .map(|prompt| button_width(&prompt.title))
-            .sum();
-        let child_count = config.prompts.len() as i32 + 1;
-        let width = EDGE * 2 + GRIP_WIDTH + prompt_width + SPACING * child_count.saturating_sub(1);
+        let (width, height) = strip_dimensions(config);
         let old_right = self.window.x() + self.window.width();
+        let old_bottom = self.window.y() + self.window.height();
 
         self.window
-            .resize(old_right - width, self.window.y(), width, STRIP_HEIGHT);
+            .resize(old_right - width, old_bottom - height, width, height);
         self.pack
-            .resize(EDGE, EDGE, width - EDGE * 2, STRIP_HEIGHT - EDGE * 2);
+            .resize(EDGE, EDGE, width - EDGE * 2, height - EDGE * 2);
         self.pack.redraw();
         self.window.redraw();
+    }
+
+    pub fn position(&self) -> WindowPosition {
+        WindowPosition {
+            x: self.window.x(),
+            y: self.window.y(),
+        }
     }
 
     pub fn show(
@@ -147,24 +156,31 @@ impl Strip {
         Ok(WindowPosition { x, y })
     }
 
-    fn add_drag_grip(&mut self) {
-        let mut grip = Frame::new(0, 0, GRIP_WIDTH, STRIP_HEIGHT - EDGE * 2, "");
+    fn add_drag_grip(&mut self, orientation: Orientation) {
+        let inner_thickness = STRIP_HEIGHT - EDGE * 2;
+        let (width, height) = match orientation {
+            Orientation::Horizontal => (GRIP_WIDTH, inner_thickness),
+            Orientation::Vertical => (inner_thickness, GRIP_WIDTH),
+        };
+        let mut grip = Frame::new(0, 0, width, height, "");
         grip.set_frame(FrameType::NoBox);
-        grip.draw(|grip| {
+        grip.draw(move |grip| {
             draw::set_draw_color(Color::from_rgb(192, 192, 192));
             draw::draw_rectf(grip.x(), grip.y(), grip.w(), grip.h());
 
-            const COLUMNS: i32 = 3;
-            const ROWS: i32 = 4;
+            let (columns, rows) = match orientation {
+                Orientation::Horizontal => (3, 4),
+                Orientation::Vertical => (4, 3),
+            };
             const DOT_SIZE: i32 = 3;
             const DOT_GAP: i32 = 2;
-            let texture_width = COLUMNS * DOT_SIZE + (COLUMNS - 1) * DOT_GAP;
-            let texture_height = ROWS * DOT_SIZE + (ROWS - 1) * DOT_GAP;
+            let texture_width = columns * DOT_SIZE + (columns - 1) * DOT_GAP;
+            let texture_height = rows * DOT_SIZE + (rows - 1) * DOT_GAP;
             let start_x = grip.x() + (grip.w() - texture_width) / 2;
             let start_y = grip.y() + (grip.h() - texture_height) / 2;
 
-            for row in 0..ROWS {
-                for column in 0..COLUMNS {
+            for row in 0..rows {
+                for column in 0..columns {
                     let x = start_x + column * (DOT_SIZE + DOT_GAP);
                     let y = start_y + row * (DOT_SIZE + DOT_GAP);
 
@@ -219,8 +235,16 @@ impl Strip {
             }
             Event::Released if right_button_down => {
                 right_button_down = false;
-                match platform::show_strip_menu(&window, app::event_x_root(), app::event_y_root()) {
+                match platform::show_strip_menu(
+                    &window,
+                    app::event_x_root(),
+                    app::event_y_root(),
+                    orientation,
+                ) {
                     Ok(Some(platform::StripMenuAction::Create)) => sender.send(Message::Create),
+                    Ok(Some(platform::StripMenuAction::ToggleOrientation)) => {
+                        sender.send(Message::ToggleOrientation)
+                    }
                     Ok(Some(platform::StripMenuAction::ShowConfig)) => {
                         sender.send(Message::ShowConfig)
                     }
@@ -234,15 +258,18 @@ impl Strip {
         });
     }
 
-    fn add_prompt_button(&mut self, index: usize, prompt: &Prompt) {
-        let mut button = Button::new(
-            0,
-            0,
-            button_width(&prompt.title),
-            STRIP_HEIGHT - EDGE * 2,
-            prompt.title.as_str(),
-        );
+    fn add_prompt_button(&mut self, index: usize, prompt: &Prompt, orientation: Orientation) {
+        let extent = button_width(&prompt.title);
+        let inner_thickness = STRIP_HEIGHT - EDGE * 2;
+        let (width, height) = match orientation {
+            Orientation::Horizontal => (extent, inner_thickness),
+            Orientation::Vertical => (inner_thickness, extent),
+        };
+        let mut button = Button::new(0, 0, width, height, prompt.title.as_str());
         style_button(&mut button);
+        if orientation == Orientation::Vertical {
+            draw_vertical_button(&mut button, prompt.title.clone());
+        }
         button.set_tooltip("Click to insert · Right-click to edit");
 
         let sender = self.sender;
@@ -378,7 +405,7 @@ impl Editor {
         }
     }
 
-    pub fn open(&mut self, index: usize, prompt: &Prompt) {
+    pub fn open(&mut self, index: usize, prompt: &Prompt, orientation: Orientation) {
         self.current_index.set(Some(index));
         self.title.set_value(&prompt.title);
         self.text.set_value(&prompt.text);
@@ -388,10 +415,7 @@ impl Editor {
             self.window.show();
         }
         self.window.set_on_top();
-        if let Err(error) = platform::position_editor_above(&self.window, &self.anchor, EDITOR_GAP)
-        {
-            eprintln!("Could not position editor window: {error}");
-        }
+        self.reposition(orientation);
         if let Err(error) = platform::activate_window(&self.window) {
             eprintln!("Could not activate editor window: {error}");
         }
@@ -403,6 +427,17 @@ impl Editor {
             .ok();
     }
 
+    pub fn reposition(&mut self, orientation: Orientation) {
+        if !self.window.shown() {
+            return;
+        }
+
+        if let Err(error) =
+            platform::position_editor(&self.window, &self.anchor, EDITOR_GAP, orientation)
+        {
+            eprintln!("Could not position editor window: {error}");
+        }
+    }
     pub fn hide(&mut self) {
         self.current_index.set(None);
         self.window.hide();
@@ -418,7 +453,59 @@ fn style_button(button: &mut Button) {
     button.set_label_size(13);
 }
 
+fn draw_vertical_button(button: &mut Button, title: String) {
+    button.draw(move |button| {
+        let (frame, color) = if button.value() {
+            (button.down_frame(), button.selection_color())
+        } else {
+            (button.frame(), button.color())
+        };
+        draw::draw_box(frame, button.x(), button.y(), button.w(), button.h(), color);
+
+        draw::push_clip(button.x(), button.y(), button.w(), button.h());
+        draw::set_font(button.label_font(), button.label_size());
+        draw::set_draw_color(button.label_color());
+        let (text_width, _) = draw::measure(&title, false);
+        let baseline_x = button.x() + (button.w() - draw::height()) / 2 + draw::descent();
+        let baseline_y = button.y() + (button.h() - text_width) / 2;
+        draw::draw_text_angled(-90, &title, baseline_x, baseline_y);
+        draw::pop_clip();
+    });
+}
+
 fn button_width(title: &str) -> i32 {
     let estimated_text_width = title.chars().count() as i32 * 7;
     (estimated_text_width + BUTTON_HORIZONTAL_PADDING).clamp(MIN_BUTTON_WIDTH, MAX_BUTTON_WIDTH)
+}
+
+fn strip_dimensions(config: &Config) -> (i32, i32) {
+    let prompt_extent: i32 = config
+        .prompts
+        .iter()
+        .map(|prompt| button_width(&prompt.title))
+        .sum();
+    let child_count = config.prompts.len() as i32 + 1;
+    let length = EDGE * 2 + GRIP_WIDTH + prompt_extent + SPACING * child_count.saturating_sub(1);
+
+    match config.orientation {
+        Orientation::Horizontal => (length, STRIP_HEIGHT),
+        Orientation::Vertical => (STRIP_HEIGHT, length),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn vertical_dimensions_are_a_clockwise_quarter_turn() {
+        let horizontal = Config::default();
+        let mut vertical = horizontal.clone();
+        vertical.orientation = Orientation::Vertical;
+
+        let horizontal_size = strip_dimensions(&horizontal);
+        let vertical_size = strip_dimensions(&vertical);
+
+        assert_eq!(vertical_size, (horizontal_size.1, horizontal_size.0));
+    }
 }
