@@ -454,6 +454,7 @@ fn style_button(button: &mut Button) {
 }
 
 fn draw_vertical_button(button: &mut Button, title: String) {
+    button.super_draw(false);
     button.draw(move |button| {
         let (frame, color) = if button.value() {
             (button.down_frame(), button.selection_color())
