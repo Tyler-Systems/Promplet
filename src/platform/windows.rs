@@ -45,6 +45,7 @@ pub enum StripMenuAction {
     Create,
     ToggleOrientation,
     ShowConfig,
+    ReloadConfig,
     Quit,
 }
 
@@ -392,7 +393,8 @@ pub fn show_strip_menu(
     const CREATE_ID: usize = 1;
     const TOGGLE_ORIENTATION_ID: usize = 2;
     const SHOW_CONFIG_ID: usize = 3;
-    const QUIT_ID: usize = 4;
+    const RELOAD_CONFIG_ID: usize = 4;
+    const QUIT_ID: usize = 5;
 
     let hwnd = window.raw_handle() as HWND;
     if hwnd.is_null() {
@@ -402,6 +404,7 @@ pub fn show_strip_menu(
     let create_text = wide_null("New Promplet…");
     let show_config_text = wide_null("Show Config File");
     let vertical_text = wide_null("Vertical");
+    let reload_config_text = wide_null("Reload Config");
     let quit_text = wide_null("Quit Promplet");
 
     // SAFETY: The menu is created, used, and destroyed synchronously on the
@@ -429,6 +432,12 @@ pub fn show_strip_menu(
                 vertical_text.as_ptr(),
             ) != 0
             && AppendMenuW(menu, MF_STRING, SHOW_CONFIG_ID, show_config_text.as_ptr()) != 0
+            && AppendMenuW(
+                menu,
+                MF_STRING,
+                RELOAD_CONFIG_ID,
+                reload_config_text.as_ptr(),
+            ) != 0
             && AppendMenuW(menu, MF_SEPARATOR, 0, ptr::null()) != 0
             && AppendMenuW(menu, MF_STRING, QUIT_ID, quit_text.as_ptr()) != 0;
         if !appended {
@@ -461,6 +470,7 @@ pub fn show_strip_menu(
             CREATE_ID => Ok(Some(StripMenuAction::Create)),
             TOGGLE_ORIENTATION_ID => Ok(Some(StripMenuAction::ToggleOrientation)),
             SHOW_CONFIG_ID => Ok(Some(StripMenuAction::ShowConfig)),
+            RELOAD_CONFIG_ID => Ok(Some(StripMenuAction::ReloadConfig)),
             QUIT_ID => Ok(Some(StripMenuAction::Quit)),
             unknown => Err(format!(
                 "Windows returned an unknown grip menu command: {unknown}"

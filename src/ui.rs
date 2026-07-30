@@ -32,6 +32,7 @@ pub enum Message {
     Edit(usize),
     Create,
     ShowConfig,
+    ReloadConfig,
     ToggleOrientation,
     Save {
         index: usize,
@@ -247,6 +248,9 @@ impl Strip {
                     }
                     Ok(Some(platform::StripMenuAction::ShowConfig)) => {
                         sender.send(Message::ShowConfig)
+                    }
+                    Ok(Some(platform::StripMenuAction::ReloadConfig)) => {
+                        sender.send(Message::ReloadConfig)
                     }
                     Ok(Some(platform::StripMenuAction::Quit)) => sender.send(Message::Quit),
                     Ok(None) => {}

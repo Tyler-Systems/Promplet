@@ -81,6 +81,16 @@ fn run() -> Result<(), String> {
                         ));
                     }
                 }
+                Message::ReloadConfig => match reload_config(&store, &mut config) {
+                    Ok(()) => {
+                        editor.hide();
+                        strip.rebuild(&config);
+                        config.window_position = Some(strip.position());
+                    }
+                    Err(error) => dialog::alert_default(&format!(
+                        "Promplet could not reload its settings.\n\n{error}"
+                    )),
+                },
                 Message::ToggleOrientation => {
                     config.orientation = config.orientation.toggled();
                     rebuild_and_save(&mut strip, &store, &mut config);
@@ -126,6 +136,12 @@ fn run() -> Result<(), String> {
     Ok(())
 }
 
+fn reload_config(store: &ConfigStore, config: &mut Config) -> Result<(), String> {
+    let reloaded = store.load()?;
+    *config = reloaded;
+    Ok(())
+}
+
 fn rebuild_and_save(strip: &mut Strip, store: &ConfigStore, config: &mut Config) {
     strip.rebuild(config);
     config.window_position = Some(strip.position());
@@ -135,5 +151,58 @@ fn rebuild_and_save(strip: &mut Strip, store: &ConfigStore, config: &mut Config)
 fn save_or_report(store: &ConfigStore, config: &Config) {
     if let Err(error) = store.save(config) {
         dialog::alert_default(&format!("Promplet could not save its settings.\n\n{error}"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        fs,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    use super::*;
+
+    fn temporary_store(test_name: &str) -> (std::path::PathBuf, ConfigStore) {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock should be after epoch")
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "promplet-{test_name}-{}-{unique}",
+            std::process::id()
+        ));
+        let store = ConfigStore::at(directory.join("promplets.json"));
+        (directory, store)
+    }
+
+    #[test]
+    fn reload_replaces_current_config() {
+        let (directory, store) = temporary_store("reload");
+        let mut expected = Config::default();
+        expected.prompts[0].title = "Reloaded".to_owned();
+        store.save(&expected).expect("replacement should save");
+
+        let mut current = Config::default();
+        current.prompts.clear();
+        reload_config(&store, &mut current).expect("replacement should load");
+
+        assert_eq!(current, expected);
+        fs::remove_dir_all(directory).expect("temporary settings should be removable");
+    }
+
+    #[test]
+    fn failed_reload_keeps_current_config() {
+        let (directory, store) = temporary_store("failed-reload");
+        fs::create_dir_all(&directory).expect("temporary directory should be created");
+        fs::write(store.path(), b"{not json").expect("malformed settings should be written");
+
+        let mut current = Config::default();
+        current.prompts[0].title = "Keep me".to_owned();
+        let before = current.clone();
+
+        assert!(reload_config(&store, &mut current).is_err());
+        assert_eq!(current, before);
+        fs::remove_dir_all(directory).expect("temporary settings should be removable");
     }
 }
