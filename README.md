@@ -12,7 +12,7 @@ previously focused text box without reading or changing the clipboard.
 
 ## Windows alpha
 
-The `v0.1.0-alpha.2` checkpoint is a portable Windows x86-64 app: extract the
+The `v0.1.0-alpha.3` checkpoint is a portable Windows x86-64 app: extract the
 ZIP and run `promplet.exe`. There is no installer, background service,
 auto-updater, or telemetry.
 
@@ -24,7 +24,13 @@ code-signed.
 - Click a prompt to insert its text.
 - Right-click a prompt to edit, duplicate, add after, or delete it.
 - Drag the dotted grip to move the strip.
-- Right-click the grip to add a prompt, reveal the config file, or quit.
+- Right-click the grip to add a prompt, switch orientation, reveal or reload
+  the config file, or quit.
+
+The strip can remain horizontal or rotate 90° clockwise into a narrow vertical
+bar while its menus and editor stay upright.
+
+![Promplet in vertical mode](docs/promplet-windows-vertical.png)
 
 Promplet starts just above the taskbar. You may drag it over the taskbar, and
 its topmost behavior yields while another application is truly full-screen.
@@ -37,8 +43,10 @@ Settings are stored as readable JSON at:
 %LOCALAPPDATA%\Promplet\promplets.json
 ```
 
-Use **Show config** from the grip menu to open that folder for backup or
-transfer.
+Use **Show Config File** from the grip menu to open that folder for backup or
+transfer. After editing or replacing the JSON file, choose **Reload Config** to
+apply it without restarting Promplet. A malformed file reports an error and
+leaves the current prompts untouched.
 
 ## Build from source
 

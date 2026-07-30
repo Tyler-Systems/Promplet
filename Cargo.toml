@@ -1,6 +1,6 @@
 [package]
 name = "promplet"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 edition = "2024"
 description = "A tiny, clipboard-free prompt strip for Windows"
 license = "MIT"
