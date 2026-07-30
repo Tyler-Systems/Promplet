@@ -1,12 +1,15 @@
-use std::{ffi::OsString, io, mem, path::Path, process::Command, ptr};
+use std::{ffi::OsString, io, mem, path::Path, process::Command, ptr, thread, time::Duration};
 
 use fltk::{prelude::WindowExt, window::DoubleWindow};
 use windows_sys::Win32::{
-    Foundation::{HWND, RECT},
+    Foundation::{
+        CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE, HWND, RECT, SetLastError,
+    },
     Graphics::Gdi::{
         GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITOR_DEFAULTTOPRIMARY, MONITORINFO,
         MonitorFromWindow,
     },
+    System::Threading::CreateMutexW,
     UI::{
         Input::KeyboardAndMouse::{
             INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE,
@@ -16,14 +19,18 @@ use windows_sys::Win32::{
             AppendMenuW, CreatePopupMenu, DestroyMenu, FindWindowExW, FindWindowW, GW_HWNDPREV,
             GWL_EXSTYLE, GetClassNameW, GetForegroundWindow, GetWindow, GetWindowLongPtrW,
             GetWindowRect, HWND_TOPMOST, MF_SEPARATOR, MF_STRING, PostMessageW, SWP_FRAMECHANGED,
-            SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SetForegroundWindow, SetWindowLongPtrW,
-            SetWindowPos, TPM_RETURNCMD, TPM_RIGHTBUTTON, TrackPopupMenuEx, WM_NULL,
-            WS_EX_NOACTIVATE,
+            SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetForegroundWindow,
+            SetWindowLongPtrW, SetWindowPos, TPM_RETURNCMD, TPM_RIGHTBUTTON, TrackPopupMenuEx,
+            WM_NULL, WS_EX_NOACTIVATE,
         },
     },
 };
 
 const INPUT_CHUNK_SIZE: usize = 256;
+const INSTANCE_MUTEX_NAME: &str = r"Local\Promplet.SingleInstance.v1";
+const STRIP_WINDOW_TITLE: &str = "Promplet";
+const EXISTING_WINDOW_RETRIES: usize = 20;
+const EXISTING_WINDOW_RETRY_DELAY: Duration = Duration::from_millis(50);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TextUnit {
@@ -36,6 +43,90 @@ pub enum StripMenuAction {
     Create,
     ShowConfig,
     Quit,
+}
+
+pub struct SingleInstanceGuard {
+    mutex: HANDLE,
+}
+
+impl Drop for SingleInstanceGuard {
+    fn drop(&mut self) {
+        // SAFETY: `mutex` is the live handle returned by `CreateMutexW`, and
+        // this guard owns it for the lifetime of the primary process.
+        unsafe {
+            CloseHandle(self.mutex);
+        }
+    }
+}
+
+pub fn claim_single_instance() -> Result<Option<SingleInstanceGuard>, String> {
+    let mutex_name = wide_null(INSTANCE_MUTEX_NAME);
+
+    // SAFETY: The security attributes pointer is null, the name is
+    // NUL-terminated, and the returned handle is either closed below or owned
+    // by `SingleInstanceGuard`.
+    let (mutex, already_running) = unsafe {
+        SetLastError(0);
+        let mutex = CreateMutexW(ptr::null(), 0, mutex_name.as_ptr());
+        if mutex.is_null() {
+            return Err(format!(
+                "Windows could not create the single-instance guard: {}",
+                io::Error::last_os_error()
+            ));
+        }
+        (mutex, GetLastError() == ERROR_ALREADY_EXISTS)
+    };
+
+    if already_running {
+        // SAFETY: This process does not own the existing named mutex; it only
+        // closes the handle returned by its own `CreateMutexW` call.
+        unsafe {
+            CloseHandle(mutex);
+        }
+        wake_existing_instance()?;
+        Ok(None)
+    } else {
+        Ok(Some(SingleInstanceGuard { mutex }))
+    }
+}
+
+fn wake_existing_instance() -> Result<(), String> {
+    let window_title = wide_null(STRIP_WINDOW_TITLE);
+
+    for attempt in 0..EXISTING_WINDOW_RETRIES {
+        // SAFETY: The class pointer is null and `window_title` is a live,
+        // NUL-terminated UTF-16 buffer.
+        let hwnd = unsafe { FindWindowW(ptr::null(), window_title.as_ptr()) };
+        if !hwnd.is_null() {
+            // SAFETY: `hwnd` is the top-level strip window returned by
+            // `FindWindowW`. The call shows it and raises it without stealing
+            // focus from the user's current text field.
+            if unsafe {
+                SetWindowPos(
+                    hwnd,
+                    HWND_TOPMOST,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                )
+            } == 0
+            {
+                return Err(format!(
+                    "Windows could not raise the running Promplet strip: {}",
+                    io::Error::last_os_error()
+                ));
+            }
+            return Ok(());
+        }
+
+        if attempt + 1 < EXISTING_WINDOW_RETRIES {
+            thread::sleep(EXISTING_WINDOW_RETRY_DELAY);
+        }
+    }
+
+    Err("Another Promplet process is running, but Windows could not find its strip.".to_owned())
 }
 
 pub fn configure_strip_window(window: &DoubleWindow) -> Result<(), String> {

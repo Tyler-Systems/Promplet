@@ -28,6 +28,8 @@ code-signed.
 
 Promplet starts just above the taskbar. You may drag it over the taskbar, and
 its topmost behavior yields while another application is truly full-screen.
+Launching Promplet again raises the existing strip instead of starting a
+duplicate process.
 
 Settings are stored as readable JSON at:
 

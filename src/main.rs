@@ -17,6 +17,10 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
+    let Some(_instance_guard) = platform::claim_single_instance()? else {
+        return Ok(());
+    };
+
     let application = app::App::default().with_scheme(app::Scheme::Base);
     let (sender, receiver) = app::channel::<Message>();
 
