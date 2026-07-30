@@ -12,7 +12,7 @@ previously focused text box without reading or changing the clipboard.
 
 ## Windows alpha
 
-The `v0.1.0-alpha.1` checkpoint is a portable Windows x86-64 app: extract the
+The `v0.1.0-alpha.2` checkpoint is a portable Windows x86-64 app: extract the
 ZIP and run `promplet.exe`. There is no installer, background service,
 auto-updater, or telemetry.
 
