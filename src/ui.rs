@@ -18,7 +18,7 @@ use crate::{
 const STRIP_HEIGHT: i32 = 31;
 const EDGE: i32 = 3;
 const GRIP_WIDTH: i32 = 24;
-const SPACING: i32 = 0;
+const SPACING: i32 = 2;
 const EDITOR_GAP: i32 = 8;
 const BUTTON_HORIZONTAL_PADDING: i32 = 18;
 const MIN_BUTTON_WIDTH: i32 = 48;
@@ -57,7 +57,6 @@ impl Strip {
     pub fn new(sender: app::Sender<Message>) -> Self {
         let mut window = DoubleWindow::new(0, 0, 360, STRIP_HEIGHT, "Promplet");
         window.set_border(false);
-        window.set_frame(FrameType::UpBox);
         window.set_color(Color::from_rgb(192, 192, 192));
 
         let mut pack = Pack::new(
@@ -272,9 +271,9 @@ impl Strip {
         };
         let mut button = Button::new(0, 0, width, height, prompt.title.as_str());
         style_button(&mut button);
-        button.set_frame(FrameType::FlatBox);
-        button.set_color(Color::from_rgb(192, 192, 192));
-        draw_prompt_button(&mut button, prompt.title.clone(), orientation);
+        if orientation == Orientation::Vertical {
+            draw_vertical_button(&mut button, prompt.title.clone());
+        }
         button.set_tooltip("Click to insert · Right-click to edit");
 
         let sender = self.sender;
@@ -458,40 +457,23 @@ fn style_button(button: &mut Button) {
     button.set_label_size(13);
 }
 
-fn draw_prompt_button(button: &mut Button, title: String, orientation: Orientation) {
+fn draw_vertical_button(button: &mut Button, title: String) {
     button.super_draw(false);
     button.draw(move |button| {
-        let (x, y, width, height) = (button.x(), button.y(), button.w(), button.h());
-        let pressed = button.value();
-        let frame = if pressed {
-            button.down_frame()
+        let (frame, color) = if button.value() {
+            (button.down_frame(), button.selection_color())
         } else {
-            button.frame()
+            (button.frame(), button.color())
         };
-        draw::draw_box(frame, x, y, width, height, button.color());
+        draw::draw_box(frame, button.x(), button.y(), button.w(), button.h(), color);
 
-        draw::set_draw_color(Color::from_rgb(96, 96, 96));
-        let (divider_x, divider_y) = match orientation {
-            Orientation::Horizontal => (x, y + height - 1),
-            Orientation::Vertical => (x + width - 1, y),
-        };
-        draw::draw_line(x, y, divider_x, divider_y);
-
-        draw::push_clip(x, y, width, height);
+        draw::push_clip(button.x(), button.y(), button.w(), button.h());
         draw::set_font(button.label_font(), button.label_size());
         draw::set_draw_color(button.label_color());
-        let offset = i32::from(pressed);
-        match orientation {
-            Orientation::Horizontal => {
-                draw::draw_text2(&title, x + offset, y + offset, width, height, Align::Center);
-            }
-            Orientation::Vertical => {
-                let (text_width, _) = draw::measure(&title, false);
-                let baseline_x = x + (width - draw::height()) / 2 + draw::descent() + offset;
-                let baseline_y = y + (height - text_width) / 2 + offset;
-                draw::draw_text_angled(-90, &title, baseline_x, baseline_y);
-            }
-        }
+        let (text_width, _) = draw::measure(&title, false);
+        let baseline_x = button.x() + (button.w() - draw::height()) / 2 + draw::descent();
+        let baseline_y = button.y() + (button.h() - text_width) / 2;
+        draw::draw_text_angled(-90, &title, baseline_x, baseline_y);
         draw::pop_clip();
     });
 }
