@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    # Debian 12 keeps the glibc requirement low enough for any 2023+ distro.
+    container: debian:bookworm
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y curl ca-certificates git build-essential cmake zip \
+            libx11-dev libxtst-dev libxext-dev libxft-dev libxinerama-dev \
+            libxcursor-dev libxrender-dev libxfixes-dev libpango1.0-dev \
+            libgl1-mesa-dev libglu1-mesa-dev
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+      - uses: actions/checkout@v4
+      - name: Build and package
+        run: |
+          . "$HOME/.cargo/env"
+          cargo test
+          cargo build --release
+          zip -j "Promplet-${GITHUB_REF_NAME}-linux-x86_64.zip" target/release/promplet LICENSE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: Promplet-*.zip
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and package
+        shell: pwsh
+        run: |
+          cargo test
+          cargo build --release
+          Compress-Archive -Path target/release/promplet.exe, LICENSE `
+            -DestinationPath "Promplet-$env:GITHUB_REF_NAME-windows-x86_64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: Promplet-*.zip
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and package
+        run: |
+          cargo test
+          ./scripts/package-macos.sh
+          ditto -c -k --keepParent target/release/Promplet.app \
+            "Promplet-${GITHUB_REF_NAME}-macos-arm64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: Promplet-*.zip
+
+  publish:
+    needs: [linux, windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --prerelease --title "Promplet $GITHUB_REF_NAME" --generate-notes \
+            Promplet-*.zip
