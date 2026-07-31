@@ -31,6 +31,23 @@ auto-updater, or telemetry.
 Windows may show a security warning because this early build is not
 code-signed.
 
+## macOS alpha
+
+The macOS backend is new and built from source (see below). Promplet runs as
+an accessory app: no Dock icon, no menu bar, just the strip.
+
+macOS requires permission before any app may type into another. On the first
+insert, macOS shows its Accessibility prompt; enable Promplet under **System
+Settings → Privacy & Security → Accessibility** and click the prompt again.
+When run with `cargo run` instead of the app bundle, that permission belongs
+to the terminal that launched it.
+
+Rebuilding invalidates that permission: an ad-hoc-signed build is trusted by
+its exact hash. After a rebuild, remove Promplet from the Accessibility list
+(or run `tccutil reset Accessibility com.tylersystems.promplet`) and grant it
+again, or set `CODESIGN_IDENTITY` when packaging to sign with a stable
+identity.
+
 ## Use
 
 - Click a prompt to insert its text.
@@ -46,15 +63,16 @@ bar while its menus and editor stay upright.
   <a href="docs/promplet-windows-vertical.png"><img src="docs/promplet-windows-vertical.png" width="47" alt="Promplet in vertical mode"></a>
 </p>
 
-Promplet starts just above the taskbar. You may drag it over the taskbar, and
-its topmost behavior yields while another application is truly full-screen.
-Launching Promplet again raises the existing strip instead of starting a
-duplicate process.
+Promplet starts just above the taskbar (Windows) or the Dock (macOS). You may
+drag it over either, and its topmost behavior yields while another application
+is truly full-screen. Launching Promplet again yields to the running strip
+instead of starting a duplicate process.
 
 Settings are stored as readable JSON at:
 
 ```text
-%LOCALAPPDATA%\Promplet\promplets.json
+%LOCALAPPDATA%\Promplet\promplets.json                      (Windows)
+~/Library/Application Support/Promplet/promplets.json       (macOS)
 ```
 
 Use **Show Config File** from the grip menu to open that folder for backup or
@@ -64,10 +82,8 @@ leaves the current prompts untouched.
 
 ## Build from source
 
-Prerequisites:
-
-- Rust stable with the `x86_64-pc-windows-msvc` target
-- Visual Studio 2022 Build Tools with the C++ workload and Windows SDK
+On Windows, with Rust stable (`x86_64-pc-windows-msvc`) and the Visual Studio
+2022 Build Tools (C++ workload and Windows SDK):
 
 ```powershell
 cargo test
@@ -77,13 +93,26 @@ cargo run --release
 Debug builds keep a console window for diagnostics; release builds use the
 Windows GUI subsystem.
 
+On macOS, with Rust stable and the Xcode Command Line Tools:
+
+```bash
+cargo test
+./scripts/package-macos.sh
+open target/release/Promplet.app
+```
+
+The script wraps the release binary in a minimal `Promplet.app`, which gives
+the Accessibility permission an app identity to attach to; sign with
+`CODESIGN_IDENTITY` to keep that identity stable across rebuilds. Copy the
+bundle to `/Applications` to keep it. `cargo run` works too for development.
+
 ## Current scope
 
-Windows is implemented first. Native macOS and Linux input/window backends are
-planned, but not present in this alpha.
+Windows and macOS are implemented; a Linux backend is planned.
 
 - Windows prevents input injection into an elevated app unless Promplet is
   elevated too.
+- macOS requires the Accessibility permission described above.
 - Some applications and secure text fields intentionally reject synthetic
   keyboard input.
 
