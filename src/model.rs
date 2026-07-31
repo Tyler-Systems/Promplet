@@ -97,20 +97,70 @@ impl Default for Config {
             version: 1,
             window_position: None,
             orientation: Orientation::Horizontal,
+            // Newlines inside default prompts are always written as
+            // backslash-newline: Claude Code and shells read that as a line
+            // continuation, so clicking a prompt never presses a bare Enter
+            // that would submit a terminal's input mid-text.
             prompts: vec![
                 Prompt {
-                    title: "Explain".to_owned(),
-                    text: "Explain this clearly and concisely, including any important caveats."
+                    title: "Onboard".to_owned(),
+                    text: "Explore this repo until you understand it: docs, working code, \
+                           recent commits. Make no changes. Then report: a two-sentence \
+                           summary, current state, anything half-finished, and your top 3 \
+                           next steps, ranked, with a one-line reason each."
                         .to_owned(),
                 },
                 Prompt {
-                    title: "Review".to_owned(),
-                    text: "Review this critically. Identify concrete problems, explain their impact, and suggest focused improvements."
+                    title: "Rules".to_owned(),
+                    text: "These writing style rules apply to everything you write: replies, \
+                           docs, code comments, commit messages, drafted prose.\\\n\
+                           - Open with the answer. No preamble, praise, apologies, restating \
+                           my question, or background I already know.\\\n\
+                           - Banned constructions: \"it's not just X, it's Y\" / \"no X, no Y, \
+                           just Z\"; \"in today's fast-paced/digital world\"; \"whether you're \
+                           X or Y\"; \"at its core\"; \"imagine a world where\"; \"think of it \
+                           as\"; \"let's dive in\" / \"here's the thing\"; \"it's worth \
+                           noting\"; \"by doing X, you can Y\"; unsourced \"studies show\" / \
+                           \"experts agree\".\\\n\
+                           - Banned words (unless quoting or technically required): delve, \
+                           tapestry, realm, landscape, ecosystem, seamless, robust, nuanced, \
+                           crucial, pivotal, comprehensive, leverage, unlock, elevate, \
+                           transform, game-changing.\\\n\
+                           - Use concrete nouns, active verbs, names, and numbers. A claim \
+                           with no source, number, or named entity behind it gets cut, not \
+                           hedged.\\\n\
+                           - Don't pad lists to three items. Vary sentence and paragraph \
+                           length; no uniform rhythm, no chained fragments.\\\n\
+                           - Plain paragraphs by default. Headings and bullets only when \
+                           structure materially helps; numbered lists only for true \
+                           sequences; no \"**Label**: text\" bullets, emoji bullets, or \
+                           decorative arrows.\\\n\
+                           - At most one em dash per response.\\\n\
+                           - Make the call: recommendation first, caveats after. Don't \
+                           manufacture balance or retreat to \"it depends\".\\\n\
+                           - Hedge at most once, and only when the uncertainty changes what I \
+                           should do. One short disclaimer only where it changes the \
+                           answer.\\\n\
+                           - No stock transitions (moreover, furthermore, additionally), no \
+                           announced conclusions (\"in conclusion\", \"ultimately\"), no \
+                           narrating your own structure (\"in this section we'll...\", \
+                           mid-answer recaps).\\\n\
+                           - End on substance: no summary recap, no \"let me know if you'd \
+                           like...\", no menus of generic options. When the work points to a \
+                           real next step, name it concretely (the exact command, file, or \
+                           decision); one or two, not a list of maybes.\\\n\
+                           - Code: give the fix first; explain only the non-obvious parts."
                         .to_owned(),
                 },
                 Prompt {
-                    title: "Rewrite".to_owned(),
-                    text: "Rewrite this for clarity and brevity while preserving the original meaning."
+                    title: "Paths".to_owned(),
+                    text: "Excellent. Suggest some next paths we can work on.".to_owned(),
+                },
+                Prompt {
+                    title: "Wrap".to_owned(),
+                    text: "What are we forgetting as we look to wrap the session? Is there \
+                           anything I should have asked, or anything from this session that \
+                           should be saved?"
                         .to_owned(),
                 },
             ],
@@ -140,7 +190,7 @@ mod tests {
 
         assert_eq!(index, 1);
         assert_eq!(config.prompts[1].text, original.text);
-        assert_eq!(config.prompts[1].title, "Explain copy");
+        assert_eq!(config.prompts[1].title, "Onboard copy");
     }
 
     #[test]
@@ -152,6 +202,23 @@ mod tests {
 
         assert!(config.delete_prompt(0));
         assert!(config.prompts.is_empty());
+    }
+
+    #[test]
+    fn default_prompts_never_press_a_bare_enter() {
+        for prompt in Config::default().prompts {
+            let mut previous = ' ';
+            for character in prompt.text.chars() {
+                if character == '\n' {
+                    assert_eq!(
+                        previous, '\\',
+                        "newline in default prompt “{}” lacks a continuation backslash",
+                        prompt.title
+                    );
+                }
+                previous = character;
+            }
+        }
     }
 
     #[test]
