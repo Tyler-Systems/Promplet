@@ -7,9 +7,11 @@
 <p align="center"><strong>A tiny prompt strip that types saved text without touching the clipboard.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/Tyler-Systems/Promplet/releases/download/v0.1.0-alpha.4/Promplet-v0.1.0-alpha.4-windows-x86_64.zip"><strong>Download for Windows</strong></a>
+  <a href="https://github.com/Tyler-Systems/Promplet/releases/download/v0.1.0-alpha.6/Promplet-v0.1.0-alpha.6-windows-x86_64.zip"><strong>Download for Windows</strong></a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/Tyler-Systems/Promplet/releases/download/v0.1.0-alpha.5/Promplet-v0.1.0-alpha.5-macos-arm64.zip"><strong>Download for macOS</strong></a>
+  <a href="https://github.com/Tyler-Systems/Promplet/releases/download/v0.1.0-alpha.6/Promplet-v0.1.0-alpha.6-macos-arm64.zip"><strong>Download for macOS</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/Tyler-Systems/Promplet/releases/download/v0.1.0-alpha.6/Promplet-v0.1.0-alpha.6-linux-x86_64.zip"><strong>Download for Linux</strong></a>
   &nbsp;·&nbsp;
   <a href="#build-from-source">Build from source</a>
   &nbsp;·&nbsp;
@@ -26,7 +28,7 @@ previously focused text box without reading or changing the clipboard.
 
 ## Windows alpha
 
-The `v0.1.0-alpha.4` checkpoint is a portable Windows x86-64 app: extract the
+The `v0.1.0-alpha.6` checkpoint is a portable Windows x86-64 app: extract the
 ZIP and run `promplet.exe`. There is no installer, background service,
 auto-updater, or telemetry.
 
@@ -35,7 +37,7 @@ code-signed.
 
 ## macOS alpha
 
-The `v0.1.0-alpha.5` checkpoint is an Apple Silicon app: extract the ZIP and
+The `v0.1.0-alpha.6` checkpoint is an Apple Silicon app: extract the ZIP and
 drag `Promplet.app` to Applications. Promplet runs as an accessory app: no
 Dock icon, no menu bar, just the strip.
 
@@ -53,6 +55,13 @@ its exact hash. After a rebuild, remove Promplet from the Accessibility list
 (or run `tccutil reset Accessibility com.tylersystems.promplet`) and grant it
 again, or set `CODESIGN_IDENTITY` when packaging to sign with a stable
 identity.
+
+## Linux alpha
+
+The `v0.1.0-alpha.6` checkpoint is an x86-64 binary for any current desktop
+distribution (glibc 2.36 or newer): extract the ZIP and run `./promplet`. It
+requires an X11 session, types through the XTest extension, and needs no
+special permission.
 
 ## Use
 
