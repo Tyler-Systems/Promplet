@@ -69,16 +69,17 @@ bar while its menus and editor stay upright.
   <a href="docs/promplet-windows-vertical.png"><img src="docs/promplet-windows-vertical.png" width="47" alt="Promplet in vertical mode"></a>
 </p>
 
-Promplet starts just above the taskbar (Windows) or the Dock (macOS). You may
-drag it over either, and its topmost behavior yields while another application
-is truly full-screen. Launching Promplet again yields to the running strip
-instead of starting a duplicate process.
+Promplet starts just above the taskbar (Windows), the Dock (macOS), or the
+panel (Linux). You may drag it over any of them, and its topmost behavior
+yields while another application is truly full-screen. Launching Promplet
+again yields to the running strip instead of starting a duplicate process.
 
 Settings are stored as readable JSON at:
 
 ```text
 %LOCALAPPDATA%\Promplet\promplets.json                      (Windows)
 ~/Library/Application Support/Promplet/promplets.json       (macOS)
+~/.config/promplet/promplets.json                           (Linux)
 ```
 
 Use **Show Config File** from the grip menu to open that folder for backup or
@@ -112,13 +113,31 @@ the Accessibility permission an app identity to attach to; sign with
 `CODESIGN_IDENTITY` to keep that identity stable across rebuilds. Copy the
 bundle to `/Applications` to keep it. `cargo run` works too for development.
 
+On Linux, with Rust stable and the X11 and Pango development packages
+(Debian/Ubuntu names shown; Promplet itself needs `libxtst-dev`, the rest
+belong to the FLTK toolkit):
+
+```bash
+sudo apt install libx11-dev libxtst-dev libxext-dev libxft-dev \
+    libxinerama-dev libxcursor-dev libxrender-dev libxfixes-dev \
+    libpango1.0-dev libgl1-mesa-dev libglu1-mesa-dev
+
+cargo test
+cargo run --release
+```
+
+The strip is the binary at `target/release/promplet`; copy it wherever you
+like. It types with the XTest extension and needs no special permission.
+
 ## Current scope
 
-Windows and macOS are implemented; a Linux backend is planned.
+Windows, macOS, and Linux are implemented.
 
 - Windows prevents input injection into an elevated app unless Promplet is
   elevated too.
 - macOS requires the Accessibility permission described above.
+- Linux requires an X11 session. Under Wayland, Promplet and its typing reach
+  only XWayland windows.
 - Some applications and secure text fields intentionally reject synthetic
   keyboard input.
 

@@ -53,20 +53,33 @@ impl ConfigStore {
 }
 
 #[cfg(windows)]
-fn settings_directory() -> Result<PathBuf, String> {
+pub(crate) fn settings_directory() -> Result<PathBuf, String> {
     let local_app_data = env::var_os("LOCALAPPDATA")
         .ok_or_else(|| "Windows did not provide a LOCALAPPDATA directory.".to_owned())?;
     Ok(PathBuf::from(local_app_data).join("Promplet"))
 }
 
 #[cfg(target_os = "macos")]
-fn settings_directory() -> Result<PathBuf, String> {
+pub(crate) fn settings_directory() -> Result<PathBuf, String> {
     let home =
         env::var_os("HOME").ok_or_else(|| "macOS did not provide a home directory.".to_owned())?;
     Ok(PathBuf::from(home)
         .join("Library")
         .join("Application Support")
         .join("Promplet"))
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+pub(crate) fn settings_directory() -> Result<PathBuf, String> {
+    if let Some(config_home) = env::var_os("XDG_CONFIG_HOME")
+        && !config_home.is_empty()
+    {
+        return Ok(PathBuf::from(config_home).join("promplet"));
+    }
+
+    let home =
+        env::var_os("HOME").ok_or_else(|| "Linux did not provide a home directory.".to_owned())?;
+    Ok(PathBuf::from(home).join(".config").join("promplet"))
 }
 
 fn write_file_atomically(path: &Path, contents: &[u8]) -> io::Result<()> {
