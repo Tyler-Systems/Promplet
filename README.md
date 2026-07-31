@@ -1,14 +1,26 @@
 <p align="center">
-  <img src="assets/promplet-icon.png" width="112" alt="Promplet icon">
+  <img src="assets/promplet-logo.png" width="459" alt="Promplet prompt strip">
 </p>
 
-# Promplet
+<h1 align="center">Promplet</h1>
+
+<p align="center"><strong>A tiny prompt strip that types saved text without touching the clipboard.</strong></p>
+
+<p align="center">
+  <a href="https://github.com/Tyler-Systems/Promplet/releases/download/v0.1.0-alpha.4/Promplet-v0.1.0-alpha.4-windows-x86_64.zip"><strong>Download for Windows</strong></a>
+  &nbsp;·&nbsp;
+  <a href="#build-from-source">Build from source</a>
+  &nbsp;·&nbsp;
+  <a href="LICENSE">MIT license</a>
+</p>
+
+<p align="center">
+  <a href="docs/promplet-windows.png"><img src="docs/promplet-windows.png" width="387" alt="Promplet floating above the Windows taskbar"></a>
+</p>
 
 Promplet is a tiny, always-available prompt strip inspired by the Classic Mac
 OS Control Strip. Click a button and its saved text is inserted into the
 previously focused text box without reading or changing the clipboard.
-
-![Promplet floating above the Windows taskbar](docs/promplet-windows.png)
 
 ## Windows alpha
 
@@ -30,7 +42,9 @@ code-signed.
 The strip can remain horizontal or rotate 90° clockwise into a narrow vertical
 bar while its menus and editor stay upright.
 
-![Promplet in vertical mode](docs/promplet-windows-vertical.png)
+<p align="center">
+  <a href="docs/promplet-windows-vertical.png"><img src="docs/promplet-windows-vertical.png" width="47" alt="Promplet in vertical mode"></a>
+</p>
 
 Promplet starts just above the taskbar. You may drag it over the taskbar, and
 its topmost behavior yields while another application is truly full-screen.
