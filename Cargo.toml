@@ -2,7 +2,7 @@
 name = "promplet"
 version = "0.1.0-alpha.4"
 edition = "2024"
-description = "A tiny, clipboard-free prompt strip for Windows"
+description = "A tiny, clipboard-free prompt strip for Windows and macOS"
 license = "MIT"
 
 [dependencies]

@@ -2,6 +2,11 @@ use std::{ffi::OsString, io, mem, path::Path, process::Command, ptr, thread, tim
 
 use fltk::{prelude::WindowExt, window::DoubleWindow};
 
+use super::{
+    StripMenuAction,
+    geometry::{Bounds, editor_position, visible_position},
+    text::{TextUnit, plan_text},
+};
 use crate::model::Orientation;
 use windows_sys::Win32::{
     Foundation::{
@@ -33,21 +38,6 @@ const INSTANCE_MUTEX_NAME: &str = r"Local\Promplet.SingleInstance.v1";
 const STRIP_WINDOW_TITLE: &str = "Promplet";
 const EXISTING_WINDOW_RETRIES: usize = 20;
 const EXISTING_WINDOW_RETRY_DELAY: Duration = Duration::from_millis(50);
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum TextUnit {
-    Return,
-    Unicode(u16),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum StripMenuAction {
-    Create,
-    ToggleOrientation,
-    ShowConfig,
-    ReloadConfig,
-    Quit,
-}
 
 pub struct SingleInstanceGuard {
     mutex: HANDLE,
@@ -295,7 +285,7 @@ pub fn clamp_to_work_area(window: &DoubleWindow, margin: i32) -> Result<(i32, i3
             ));
         }
 
-        let (x, y) = visible_position(&monitor_info.rcWork, &window_rect, margin);
+        let (x, y) = visible_position(&bounds(&monitor_info.rcWork), &bounds(&window_rect), margin);
         if SetWindowPos(hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE) == 0 {
             return Err(format!(
                 "Windows could not keep the strip on-screen: {}",
@@ -349,8 +339,8 @@ pub fn position_editor(
         let width = editor_rect.right - editor_rect.left;
         let height = editor_rect.bottom - editor_rect.top;
         let (x, y) = editor_position(
-            &monitor_info.rcWork,
-            &anchor_rect,
+            &bounds(&monitor_info.rcWork),
+            &bounds(&anchor_rect),
             width,
             height,
             gap,
@@ -366,6 +356,11 @@ pub fn position_editor(
     }
 
     Ok(())
+}
+
+pub fn release_activation() {
+    // Windows hands focus to the next window on its own when the editor
+    // hides; there is nothing to release.
 }
 
 pub fn activate_window(window: &DoubleWindow) -> Result<(), String> {
@@ -655,72 +650,12 @@ fn rects_overlap(left: &RECT, right: &RECT) -> bool {
         && left.bottom > right.top
 }
 
-fn editor_position(
-    work_area: &RECT,
-    anchor: &RECT,
-    width: i32,
-    height: i32,
-    gap: i32,
-    orientation: Orientation,
-) -> (i32, i32) {
-    let max_x = (work_area.right - width).max(work_area.left);
-    let max_y = (work_area.bottom - height).max(work_area.top);
-    let gap = gap.max(0);
-
-    match orientation {
-        Orientation::Horizontal => {
-            let x = (anchor.right - width).clamp(work_area.left, max_x);
-
-            let above = anchor.top - gap - height;
-            let below = anchor.bottom + gap;
-            let preferred_y = if above >= work_area.top {
-                above
-            } else if below + height <= work_area.bottom {
-                below
-            } else {
-                above
-            };
-
-            (x, preferred_y.clamp(work_area.top, max_y))
-        }
-        Orientation::Vertical => {
-            let left = anchor.left - gap - width;
-            let right = anchor.right + gap;
-            let preferred_x = if left >= work_area.left {
-                left
-            } else if right + width <= work_area.right {
-                right
-            } else {
-                left
-            };
-            let y = (anchor.bottom - height).clamp(work_area.top, max_y);
-
-            (preferred_x.clamp(work_area.left, max_x), y)
-        }
-    }
-}
-
-fn visible_position(work_area: &RECT, window: &RECT, margin: i32) -> (i32, i32) {
-    let width = window.right - window.left;
-    let height = window.bottom - window.top;
-    let (min_x, max_x) = axis_bounds(work_area.left, work_area.right, width, margin);
-    let (min_y, max_y) = axis_bounds(work_area.top, work_area.bottom, height, margin);
-
-    (
-        window.left.clamp(min_x, max_x),
-        window.top.clamp(min_y, max_y),
-    )
-}
-
-fn axis_bounds(start: i32, end: i32, size: i32, margin: i32) -> (i32, i32) {
-    let margin = margin.max(0);
-    let inset_start = start.saturating_add(margin);
-    let inset_end = end.saturating_sub(margin);
-
-    if inset_end.saturating_sub(inset_start) >= size {
-        (inset_start, inset_end - size)
-    } else {
-        (start, (end - size).max(start))
+fn bounds(rect: &RECT) -> Bounds {
+    Bounds {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
     }
 }
 
@@ -749,150 +684,9 @@ fn key_input(virtual_key: u16, scan_code: u16, flags: u32) -> INPUT {
     }
 }
 
-fn plan_text(text: &str) -> Vec<TextUnit> {
-    let mut units = Vec::with_capacity(text.len());
-    let mut characters = text.chars().peekable();
-
-    while let Some(character) = characters.next() {
-        match character {
-            '\r' => {
-                if characters.peek() == Some(&'\n') {
-                    characters.next();
-                }
-                units.push(TextUnit::Return);
-            }
-            '\n' => units.push(TextUnit::Return),
-            character => {
-                let mut encoded = [0_u16; 2];
-                units.extend(
-                    character
-                        .encode_utf16(&mut encoded)
-                        .iter()
-                        .copied()
-                        .map(TextUnit::Unicode),
-                );
-            }
-        }
-    }
-
-    units
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn text_plan_preserves_unicode_surrogate_pairs() {
-        assert_eq!(
-            plan_text("A😀"),
-            vec![
-                TextUnit::Unicode('A' as u16),
-                TextUnit::Unicode(0xD83D),
-                TextUnit::Unicode(0xDE00),
-            ]
-        );
-    }
-
-    #[test]
-    fn text_plan_normalizes_all_newline_styles() {
-        assert_eq!(
-            plan_text("a\r\nb\rc\nd"),
-            vec![
-                TextUnit::Unicode('a' as u16),
-                TextUnit::Return,
-                TextUnit::Unicode('b' as u16),
-                TextUnit::Return,
-                TextUnit::Unicode('c' as u16),
-                TextUnit::Return,
-                TextUnit::Unicode('d' as u16),
-            ]
-        );
-    }
-
-    #[test]
-    fn editor_is_right_aligned_above_anchor() {
-        let work_area = RECT {
-            left: 0,
-            top: 0,
-            right: 2560,
-            bottom: 1392,
-        };
-        let anchor = RECT {
-            left: 2270,
-            top: 1349,
-            right: 2548,
-            bottom: 1380,
-        };
-
-        assert_eq!(
-            editor_position(&work_area, &anchor, 520, 390, 8, Orientation::Horizontal),
-            (2028, 951)
-        );
-    }
-
-    #[test]
-    fn editor_stays_inside_monitor_work_area() {
-        let work_area = RECT {
-            left: -1920,
-            top: 0,
-            right: 0,
-            bottom: 1040,
-        };
-        let anchor = RECT {
-            left: -1915,
-            top: 2,
-            right: -1700,
-            bottom: 33,
-        };
-
-        assert_eq!(
-            editor_position(&work_area, &anchor, 520, 390, 8, Orientation::Horizontal),
-            (-1920, 41)
-        );
-    }
-
-    #[test]
-    fn vertical_editor_is_left_and_bottom_aligned() {
-        let work_area = RECT {
-            left: 0,
-            top: 0,
-            right: 2560,
-            bottom: 1392,
-        };
-        let anchor = RECT {
-            left: 2517,
-            top: 800,
-            right: 2548,
-            bottom: 1380,
-        };
-
-        assert_eq!(
-            editor_position(&work_area, &anchor, 520, 390, 8, Orientation::Vertical),
-            (1989, 990)
-        );
-    }
-
-    #[test]
-    fn hidden_strip_is_recovered_above_the_taskbar() {
-        let work_area = RECT {
-            left: 0,
-            top: 0,
-            right: 2560,
-            bottom: 1392,
-        };
-        let hidden_strip = RECT {
-            left: 2077,
-            top: 1403,
-            right: 2355,
-            bottom: 1434,
-        };
-
-        assert_eq!(
-            visible_position(&work_area, &hidden_strip, 12),
-            (2077, 1349)
-        );
-    }
 
     #[test]
     fn explorer_argument_selects_the_exact_config_file() {

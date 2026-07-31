@@ -154,6 +154,13 @@ impl Strip {
             platform::position_bottom_right(&self.window, SCREEN_MARGIN)?;
         }
         let (x, y) = platform::clamp_to_work_area(&self.window, SCREEN_MARGIN)?;
+
+        // The strip never uses focus, so launching should not keep it: hand
+        // activation back to the app the user was in. FLTK requests activation
+        // during startup and macOS grants it asynchronously, so release once
+        // now and once after that grant has settled.
+        platform::release_activation();
+        app::add_timeout3(1.0, |_| platform::release_activation());
         Ok(WindowPosition { x, y })
     }
 
@@ -445,6 +452,7 @@ impl Editor {
     pub fn hide(&mut self) {
         self.current_index.set(None);
         self.window.hide();
+        platform::release_activation();
     }
 }
 

@@ -12,12 +12,8 @@ pub struct ConfigStore {
 
 impl ConfigStore {
     pub fn default_location() -> Result<Self, String> {
-        let local_app_data = env::var_os("LOCALAPPDATA")
-            .ok_or_else(|| "Windows did not provide a LOCALAPPDATA directory.".to_owned())?;
         Ok(Self {
-            path: PathBuf::from(local_app_data)
-                .join("Promplet")
-                .join("promplets.json"),
+            path: settings_directory()?.join("promplets.json"),
         })
     }
 
@@ -54,6 +50,23 @@ impl ConfigStore {
         write_file_atomically(&self.path, &json)
             .map_err(|error| format!("Could not write {}: {error}", self.path.display()))
     }
+}
+
+#[cfg(windows)]
+fn settings_directory() -> Result<PathBuf, String> {
+    let local_app_data = env::var_os("LOCALAPPDATA")
+        .ok_or_else(|| "Windows did not provide a LOCALAPPDATA directory.".to_owned())?;
+    Ok(PathBuf::from(local_app_data).join("Promplet"))
+}
+
+#[cfg(target_os = "macos")]
+fn settings_directory() -> Result<PathBuf, String> {
+    let home =
+        env::var_os("HOME").ok_or_else(|| "macOS did not provide a home directory.".to_owned())?;
+    Ok(PathBuf::from(home)
+        .join("Library")
+        .join("Application Support")
+        .join("Promplet"))
 }
 
 fn write_file_atomically(path: &Path, contents: &[u8]) -> io::Result<()> {
