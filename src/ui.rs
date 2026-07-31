@@ -17,7 +17,7 @@ use crate::{
 
 const STRIP_HEIGHT: i32 = 31;
 const EDGE: i32 = 3;
-const GRIP_WIDTH: i32 = 24;
+const GRIP_WIDTH: i32 = 21;
 const SPACING: i32 = 2;
 const EDITOR_GAP: i32 = 8;
 const BUTTON_HORIZONTAL_PADDING: i32 = 18;
