@@ -9,6 +9,8 @@
 <p align="center">
   <a href="https://github.com/Tyler-Systems/Promplet/releases/download/v0.1.0-alpha.4/Promplet-v0.1.0-alpha.4-windows-x86_64.zip"><strong>Download for Windows</strong></a>
   &nbsp;·&nbsp;
+  <a href="https://github.com/Tyler-Systems/Promplet/releases/download/v0.1.0-alpha.5/Promplet-v0.1.0-alpha.5-macos-arm64.zip"><strong>Download for macOS</strong></a>
+  &nbsp;·&nbsp;
   <a href="#build-from-source">Build from source</a>
   &nbsp;·&nbsp;
   <a href="LICENSE">MIT license</a>
@@ -33,8 +35,12 @@ code-signed.
 
 ## macOS alpha
 
-The macOS backend is new and built from source (see below). Promplet runs as
-an accessory app: no Dock icon, no menu bar, just the strip.
+The `v0.1.0-alpha.5` checkpoint is an Apple Silicon app: extract the ZIP and
+drag `Promplet.app` to Applications. Promplet runs as an accessory app: no
+Dock icon, no menu bar, just the strip.
+
+This early build is not notarized, so the first launch needs a right-click on
+`Promplet.app` and **Open** to pass Gatekeeper.
 
 macOS requires permission before any app may type into another. On the first
 insert, macOS shows its Accessibility prompt; enable Promplet under **System
